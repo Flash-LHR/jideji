@@ -1,0 +1,61 @@
+name: Build Android release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Restore release signing key
+        env:
+          JIDEJI_KEYSTORE_BASE64: ${{ secrets.JIDEJI_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$JIDEJI_KEYSTORE_BASE64"
+          printf '%s' "$JIDEJI_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/jideji-release.jks"
+
+      - name: Test and build signed APK
+        env:
+          JIDEJI_KEYSTORE_PATH: ${{ runner.temp }}/jideji-release.jks
+          JIDEJI_KEYSTORE_PASSWORD: ${{ secrets.JIDEJI_KEYSTORE_PASSWORD }}
+          JIDEJI_KEY_ALIAS: ${{ secrets.JIDEJI_KEY_ALIAS }}
+          JIDEJI_KEY_PASSWORD: ${{ secrets.JIDEJI_KEY_PASSWORD }}
+        run: |
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          REPO_OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          ./gradlew testDebugUnitTest lintDebug assembleRelease \
+            -PVERSION_NAME="$VERSION_NAME" \
+            -PVERSION_CODE="${GITHUB_RUN_NUMBER}" \
+            -PGITHUB_OWNER="$REPO_OWNER" \
+            -PGITHUB_REPO="$REPO_NAME"
+          mv app/build/outputs/apk/release/app-release.apk jideji-release.apk
+
+      - name: Verify APK signature
+        run: |
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose jideji-release.apk
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" jideji-release.apk --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" jideji-release.apk --generate-notes --title "$GITHUB_REF_NAME"
+          fi
