@@ -24,10 +24,11 @@ android {
         val keystorePath = providers.environmentVariable("JIDEJI_KEYSTORE_PATH").orNull
         if (!keystorePath.isNullOrBlank()) {
             create("release") {
+                val signingPassword = providers.environmentVariable("JIDEJI_SIGNING_PASSWORD").get()
                 storeFile = file(keystorePath)
-                storePassword = providers.environmentVariable("JIDEJI_KEYSTORE_PASSWORD").get()
-                keyAlias = providers.environmentVariable("JIDEJI_KEY_ALIAS").get()
-                keyPassword = providers.environmentVariable("JIDEJI_KEY_PASSWORD").get()
+                storePassword = signingPassword
+                keyAlias = "jideji"
+                keyPassword = signingPassword
             }
         }
     }

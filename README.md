@@ -57,11 +57,9 @@ keytool -genkeypair -v -keystore jideji-release.jks -alias jideji -keyalg RSA -k
 在 GitHub 仓库的 Actions secrets 中配置：
 
 - `JIDEJI_KEYSTORE_BASE64`：`base64 < jideji-release.jks | tr -d '\n'` 的输出；
-- `JIDEJI_KEYSTORE_PASSWORD`；
-- `JIDEJI_KEY_ALIAS`；
-- `JIDEJI_KEY_PASSWORD`。
+- `JIDEJI_SIGNING_PASSWORD`：同时作为密钥库密码和密钥密码。
 
-把密钥文件离线备份，不要提交到 Git。之后推送版本标签即可发布，例如：
+密钥别名固定为 `jideji`。把密钥文件保存在私有备份仓库，不要提交到当前公开仓库。之后推送版本标签即可发布，例如：
 
 ```bash
 git tag v0.1.0
