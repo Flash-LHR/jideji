@@ -38,6 +38,11 @@ jobs:
           APK_NAME="jideji-v${VERSION_NAME}.apk"
           REPO_OWNER="${GITHUB_REPOSITORY%%/*}"
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${APK_NAME}"
+          jq -n \
+            --arg tag "$GITHUB_REF_NAME" \
+            --arg apk_url "$APK_URL" \
+            '{tag: $tag, apk_url: $apk_url}' > update.json
           ./gradlew testDebugUnitTest lintDebug assembleRelease \
             -PVERSION_NAME="$VERSION_NAME" \
             -PVERSION_CODE="${GITHUB_RUN_NUMBER}" \
@@ -57,7 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$APK_NAME" --clobber
+            gh release upload "$GITHUB_REF_NAME" "$APK_NAME" update.json --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$APK_NAME" --generate-notes --title "$GITHUB_REF_NAME"
+            gh release create "$GITHUB_REF_NAME" "$APK_NAME" update.json --generate-notes --title "$GITHUB_REF_NAME"
           fi

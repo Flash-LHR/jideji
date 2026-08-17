@@ -108,32 +108,25 @@ class UpdateManager(private val context: Context) {
     private fun isConfigured(): Boolean = BuildConfig.GITHUB_OWNER.isNotBlank() && BuildConfig.GITHUB_REPO.isNotBlank()
 
     private fun fetchLatestRelease(): ReleaseInfo {
-        val url = URL("https://api.github.com/repos/${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPO}/releases/latest")
+        val url = URL(
+            "https://github.com/${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPO}/releases/latest/download/update.json",
+        )
         val connection = (url.openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = true
             connectTimeout = 10_000
             readTimeout = 15_000
             requestMethod = "GET"
-            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "JiDeJi/${BuildConfig.VERSION_NAME}")
         }
         try {
             if (connection.responseCode !in 200..299) error("GitHub 返回 ${connection.responseCode}")
             val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-            val assets = json.getJSONArray("assets")
-            val candidates = buildList {
-                repeat(assets.length()) { index ->
-                    val asset = assets.getJSONObject(index)
-                    if (asset.getString("name").endsWith(".apk", ignoreCase = true)) add(asset)
-                }
-            }
-            val selected = candidates.firstOrNull { it.getString("name").contains("release", ignoreCase = true) }
-                ?: candidates.firstOrNull()
-                ?: error("Release 中没有 APK")
-            val downloadUrl = URL(selected.getString("browser_download_url"))
+            val downloadUrl = URL(json.getString("apk_url"))
             require(downloadUrl.protocol == "https" && downloadUrl.host == "github.com") {
                 "Release 下载地址不是 GitHub HTTPS 地址"
             }
-            return ReleaseInfo(json.getString("tag_name"), downloadUrl.toString())
+            return ReleaseInfo(json.getString("tag"), downloadUrl.toString())
         } finally {
             connection.disconnect()
         }
