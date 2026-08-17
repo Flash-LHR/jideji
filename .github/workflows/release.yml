@@ -35,6 +35,7 @@ jobs:
           JIDEJI_KEY_PASSWORD: ${{ secrets.JIDEJI_KEY_PASSWORD }}
         run: |
           VERSION_NAME="${GITHUB_REF_NAME#v}"
+          APK_NAME="jideji-v${VERSION_NAME}.apk"
           REPO_OWNER="${GITHUB_REPOSITORY%%/*}"
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
           ./gradlew testDebugUnitTest lintDebug assembleRelease \
@@ -42,20 +43,21 @@ jobs:
             -PVERSION_CODE="${GITHUB_RUN_NUMBER}" \
             -PGITHUB_OWNER="$REPO_OWNER" \
             -PGITHUB_REPO="$REPO_NAME"
-          mv app/build/outputs/apk/release/app-release.apk jideji-release.apk
+          mv app/build/outputs/apk/release/app-release.apk "$APK_NAME"
+          printf 'APK_NAME=%s\n' "$APK_NAME" >> "$GITHUB_ENV"
 
       - name: Verify APK signature
         run: |
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -n "$APKSIGNER"
-          "$APKSIGNER" verify --verbose jideji-release.apk
+          "$APKSIGNER" verify --verbose "$APK_NAME"
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" jideji-release.apk --clobber
+            gh release upload "$GITHUB_REF_NAME" "$APK_NAME" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" jideji-release.apk --generate-notes --title "$GITHUB_REF_NAME"
+            gh release create "$GITHUB_REF_NAME" "$APK_NAME" --generate-notes --title "$GITHUB_REF_NAME"
           fi
