@@ -37,10 +37,12 @@ jobs:
           REPO_OWNER="${GITHUB_REPOSITORY%%/*}"
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
           APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${APK_NAME}"
+          CHANGELOG="$(sed -n 's/^- //p' release-notes.md | head -4 | jq -R -s 'split("\n") | map(select(length > 0))')"
           jq -n \
             --arg tag "$GITHUB_REF_NAME" \
             --arg apk_url "$APK_URL" \
-            '{tag: $tag, apk_url: $apk_url}' > update.json
+            --argjson changelog "$CHANGELOG" \
+            '{tag: $tag, apk_url: $apk_url, changelog: $changelog}' > update.json
           ./gradlew testDebugUnitTest lintDebug assembleRelease \
             -PVERSION_NAME="$VERSION_NAME" \
             -PVERSION_CODE="${GITHUB_RUN_NUMBER}" \
@@ -61,6 +63,7 @@ jobs:
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$APK_NAME" update.json --clobber
+            gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md --title "$GITHUB_REF_NAME"
           else
-            gh release create "$GITHUB_REF_NAME" "$APK_NAME" update.json --generate-notes --title "$GITHUB_REF_NAME"
+            gh release create "$GITHUB_REF_NAME" "$APK_NAME" update.json --notes-file release-notes.md --title "$GITHUB_REF_NAME"
           fi

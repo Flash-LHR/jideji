@@ -18,7 +18,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -224,7 +228,7 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
     val updateReady = updateState as? UpdateState.Ready
     val updateCanInterrupt = route !in setOf(AppRoute.ENTRY, AppRoute.EDIT, AppRoute.REFUND) && !operationInFlight && !exporting
     if (updateReady != null && updateCanInterrupt) {
-        UpdateRequiredScreen(updateReady.versionName) {
+        UpdateRequiredScreen(updateReady.versionName, updateReady.changelog) {
             viewModel.updateInstallIntent()?.let {
                 skipNextResumeUpdate = true
                 context.startActivity(it)
@@ -371,11 +375,37 @@ private fun FineLocationGate(onGrant: () -> Unit) {
 }
 
 @Composable
-private fun UpdateRequiredScreen(version: String, onInstall: () -> Unit) {
+private fun UpdateRequiredScreen(version: String, changelog: List<String>, onInstall: () -> Unit) {
+    androidx.activity.compose.BackHandler { }
     Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("新版本 $version 已准备好", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) { Text("立即更新") }
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Text(
+                "发现新版本 v${version.removePrefix("v")}",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            if (changelog.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("本次更新", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    changelog.forEach { item ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("•", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = item,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        }
+                    }
+                }
+            }
+            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) { Text("安装更新") }
         }
     }
 }

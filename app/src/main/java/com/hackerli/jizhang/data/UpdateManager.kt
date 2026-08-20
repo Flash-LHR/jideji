@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -27,7 +28,11 @@ sealed interface UpdateState {
     data object Idle : UpdateState
     data object Checking : UpdateState
     data class Downloading(val percent: Int?) : UpdateState
-    data class Ready(val versionName: String, val apkPath: String) : UpdateState
+    data class Ready(
+        val versionName: String,
+        val apkPath: String,
+        val changelog: List<String>,
+    ) : UpdateState
     data class Error(val message: String) : UpdateState
 }
 
@@ -57,12 +62,19 @@ class UpdateManager(private val context: Context) {
                     }
                     download(release)
                     val info = verifiedArchive(apkFile) ?: error("更新包校验失败")
-                    preferences.edit { putString(KEY_READY_VERSION, info.versionName ?: release.tag) }
-                    _state.value = UpdateState.Ready(info.versionName ?: release.tag, apkFile.absolutePath)
+                    val versionName = info.versionName ?: release.tag
+                    preferences.edit {
+                        putString(KEY_READY_VERSION, versionName)
+                        putString(KEY_READY_CHANGELOG, JSONArray(release.changelog).toString())
+                    }
+                    _state.value = UpdateState.Ready(versionName, apkFile.absolutePath, release.changelog)
                 } catch (error: Throwable) {
                     partialFile.delete()
                     apkFile.delete()
-                    preferences.edit { remove(KEY_READY_VERSION) }
+                    preferences.edit {
+                        remove(KEY_READY_VERSION)
+                        remove(KEY_READY_CHANGELOG)
+                    }
                     if (error is CancellationException) throw error
                     _state.value = UpdateState.Error("暂时无法检查更新")
                 }
@@ -102,6 +114,7 @@ class UpdateManager(private val context: Context) {
         return UpdateState.Ready(
             preferences.getString(KEY_READY_VERSION, null) ?: info.versionName.orEmpty(),
             apkFile.absolutePath,
+            readChangelog(preferences.getString(KEY_READY_CHANGELOG, null)),
         )
     }
 
@@ -126,7 +139,11 @@ class UpdateManager(private val context: Context) {
             require(downloadUrl.protocol == "https" && downloadUrl.host == "github.com") {
                 "Release 下载地址不是 GitHub HTTPS 地址"
             }
-            return ReleaseInfo(json.getString("tag"), downloadUrl.toString())
+            return ReleaseInfo(
+                tag = json.getString("tag"),
+                downloadUrl = downloadUrl.toString(),
+                changelog = json.optJSONArray("changelog").toChangelog(),
+            )
         } finally {
             connection.disconnect()
         }
@@ -210,12 +227,35 @@ class UpdateManager(private val context: Context) {
     private fun clearDownloadedUpdate() {
         apkFile.delete()
         partialFile.delete()
-        preferences.edit { remove(KEY_READY_VERSION) }
+        preferences.edit {
+            remove(KEY_READY_VERSION)
+            remove(KEY_READY_CHANGELOG)
+        }
     }
 
-    private data class ReleaseInfo(val tag: String, val downloadUrl: String)
+    private fun readChangelog(value: String?): List<String> = runCatching {
+        if (value == null) emptyList() else JSONArray(value).toChangelog()
+    }.getOrDefault(emptyList())
+
+    private fun JSONArray?.toChangelog(): List<String> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (index in 0 until length()) {
+                val item = optString(index).trim()
+                if (item.isNotEmpty()) add(item)
+            }
+        }.take(MAX_CHANGELOG_ITEMS)
+    }
+
+    private data class ReleaseInfo(
+        val tag: String,
+        val downloadUrl: String,
+        val changelog: List<String>,
+    )
 
     companion object {
+        private const val MAX_CHANGELOG_ITEMS = 4
         private const val KEY_READY_VERSION = "ready_version"
+        private const val KEY_READY_CHANGELOG = "ready_changelog"
     }
 }
