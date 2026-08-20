@@ -21,6 +21,7 @@ class LedgerDatabase(context: Context) :
                 name TEXT NOT NULL COLLATE NOCASE UNIQUE
                     CHECK(length(trim(name)) BETWEEN 1 AND 8),
                 emoji TEXT NOT NULL CHECK(length(trim(emoji)) > 0),
+                image_path TEXT CHECK(image_path IS NULL OR length(image_path) > 0),
                 color_argb INTEGER NOT NULL,
                 sort_order INTEGER NOT NULL CHECK(sort_order >= 0),
                 is_archived INTEGER NOT NULL DEFAULT 0 CHECK(is_archived IN (0, 1))
@@ -72,14 +73,16 @@ class LedgerDatabase(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        error("Database migrations are not defined for this unreleased schema")
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE quick_tags ADD COLUMN image_path TEXT")
+        }
     }
 
     fun getTags(includeArchived: Boolean = false): List<QuickTag> {
         val result = mutableListOf<QuickTag>()
         readableDatabase.query(
             "quick_tags",
-            arrayOf("id", "name", "emoji", "color_argb", "sort_order", "is_archived"),
+            arrayOf("id", "name", "emoji", "image_path", "color_argb", "sort_order", "is_archived"),
             if (includeArchived) null else "is_archived = 0",
             null,
             null,
@@ -91,9 +94,10 @@ class LedgerDatabase(context: Context) :
                     id = cursor.getLong(0),
                     name = cursor.getString(1),
                     emoji = cursor.getString(2),
-                    colorArgb = cursor.getInt(3),
-                    sortOrder = cursor.getInt(4),
-                    isArchived = cursor.getInt(5) != 0,
+                    imagePath = cursor.getString(3),
+                    colorArgb = cursor.getInt(4),
+                    sortOrder = cursor.getInt(5),
+                    isArchived = cursor.getInt(6) != 0,
                 )
             }
         }
@@ -108,7 +112,7 @@ class LedgerDatabase(context: Context) :
             val result = mutableListOf<Expense>()
             db.rawQuery(
                 """
-                SELECT e.id, e.amount_cents, e.tag_id, t.name, t.emoji, t.color_argb,
+                SELECT e.id, e.amount_cents, e.tag_id, t.name, t.emoji, t.image_path, t.color_argb,
                        e.occurred_at, e.note, e.latitude, e.longitude,
                        e.location_accuracy_m, e.location_label
                 FROM expenses e
@@ -125,13 +129,14 @@ class LedgerDatabase(context: Context) :
                         tagId = cursor.getLong(2),
                         tagName = cursor.getString(3),
                         tagEmoji = cursor.getString(4),
-                        tagColorArgb = cursor.getInt(5),
-                        occurredAt = cursor.getLong(6),
-                        note = cursor.getString(7),
-                        latitude = cursor.getDouble(8),
-                        longitude = cursor.getDouble(9),
-                        locationAccuracyMeters = cursor.getFloat(10),
-                        locationLabel = cursor.getString(11),
+                        tagImagePath = cursor.getString(5),
+                        tagColorArgb = cursor.getInt(6),
+                        occurredAt = cursor.getLong(7),
+                        note = cursor.getString(8),
+                        latitude = cursor.getDouble(9),
+                        longitude = cursor.getDouble(10),
+                        locationAccuracyMeters = cursor.getFloat(11),
+                        locationLabel = cursor.getString(12),
                         photos = photos[id].orEmpty(),
                         refunds = refunds[id].orEmpty(),
                     )
@@ -234,13 +239,14 @@ class LedgerDatabase(context: Context) :
         }
     }
 
-    fun insertTag(name: String, emoji: String, colorArgb: Int, sortOrder: Int) {
+    fun insertTag(name: String, emoji: String, imagePath: String?, colorArgb: Int, sortOrder: Int) {
         writableDatabase.insertOrThrow(
             "quick_tags",
             null,
             ContentValues().apply {
                 put("name", name)
                 put("emoji", emoji)
+                put("image_path", imagePath)
                 put("color_argb", colorArgb)
                 put("sort_order", sortOrder)
             },
@@ -254,6 +260,7 @@ class LedgerDatabase(context: Context) :
                 ContentValues().apply {
                     put("name", tag.name)
                     put("emoji", tag.emoji)
+                    put("image_path", tag.imagePath)
                     put("color_argb", tag.colorArgb)
                 },
                 "id = ?",
@@ -381,7 +388,7 @@ class LedgerDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "jideji.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
     }
 }
 

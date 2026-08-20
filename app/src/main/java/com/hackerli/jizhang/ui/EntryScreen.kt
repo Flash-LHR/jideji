@@ -118,7 +118,9 @@ internal fun EntryScreen(
                 contentPadding = PaddingValues(horizontal = 0.dp),
             ) { Text("‹ 返回") }
             Spacer(Modifier.width(8.dp))
-            Text("${tag.emoji} ${tag.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            TagIcon(tag.emoji, tag.imagePath, tag.colorArgb, tag.name, Modifier.size(36.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(tag.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         Text(
             text = location.label.ifBlank { "位置已记录" },

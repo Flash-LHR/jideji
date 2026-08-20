@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,7 +45,17 @@ internal fun RefundScreen(
             Text("记录退款", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
         }
-        Text("${expense.tagEmoji} ${expense.tagName}", modifier = Modifier.padding(top = 18.dp), style = MaterialTheme.typography.titleMedium)
+        Row(modifier = Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            TagIcon(
+                expense.tagEmoji,
+                expense.tagImagePath,
+                expense.tagColorArgb,
+                expense.tagName,
+                Modifier.size(36.dp),
+            )
+            Spacer(Modifier.width(9.dp))
+            Text(expense.tagName, style = MaterialTheme.typography.titleMedium)
+        }
         Text("原消费  ¥${formatCents(expense.amountCents)}", modifier = Modifier.padding(top = 10.dp))
         Text("已退款  ¥${formatCents(expense.refundedAmountCents)}")
         Text(

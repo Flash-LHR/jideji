@@ -12,9 +12,13 @@ import java.util.zip.ZipInputStream
 
 class FullExporterTest {
     @Test
-    fun fullExportContainsWorkbookAndOriginalPhotosOnly() {
+    fun fullExportContainsWorkbookAndAllImages() {
         val photo = File.createTempFile("jideji-photo", ".jpg").apply {
             writeBytes(byteArrayOf(1, 2, 3, 4))
+            deleteOnExit()
+        }
+        val tagImage = File.createTempFile("jideji-tag", ".jpg").apply {
+            writeBytes(byteArrayOf(5, 6, 7, 8))
             deleteOnExit()
         }
         val expense = expense(photo).copy(
@@ -25,13 +29,14 @@ class FullExporterTest {
         FullExporter.write(
             output = output,
             expenses = listOf(expense),
-            tags = listOf(QuickTag(7, "餐饮", "🍜", 0, 0)),
+            tags = listOf(QuickTag(7, "餐饮", "🍜", 0, 0, imagePath = tagImage.absolutePath)),
             zoneId = ZoneId.of("Asia/Shanghai"),
         )
 
         val entries = unzip(output.toByteArray())
         assertTrue("记得记账单.xlsx" in entries)
         assertEquals(photo.readBytes().toList(), entries.getValue("photos/bill-1-1.jpg").toList())
+        assertEquals(tagImage.readBytes().toList(), entries.getValue("tag-icons/tag-7.jpg").toList())
 
         val workbookEntries = unzip(entries.getValue("记得记账单.xlsx"))
         val workbook = workbookEntries.getValue("xl/workbook.xml").decodeToString()
@@ -42,6 +47,9 @@ class FullExporterTest {
         val billSheet = workbookEntries.getValue("xl/worksheets/sheet1.xml").decodeToString()
         assertTrue(billSheet.contains("Asia/Shanghai"))
         assertTrue(billSheet.contains("部分退款"))
+        val tagSheet = workbookEntries.getValue("xl/worksheets/sheet4.xml").decodeToString()
+        assertTrue(tagSheet.contains("图标类型"))
+        assertTrue(tagSheet.contains("tag-7.jpg"))
     }
 
     @Test

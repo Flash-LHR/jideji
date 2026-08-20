@@ -120,7 +120,7 @@ internal fun EditExpenseScreen(
             ) { Text("保存") }
         }
 
-        EditRow("标签", selectedTag?.let { "${it.emoji} ${it.name}" }.orEmpty(), !interactionLocked) { chooseTag = true }
+        TagEditRow(selectedTag, !interactionLocked) { chooseTag = true }
         EditRow("金额", "¥${formatYuan(amountYuan)}", !interactionLocked) { editAmount = true }
         EditRow("备注", note.ifBlank { "未填写" }, !interactionLocked) { editNote = true }
 
@@ -189,7 +189,13 @@ internal fun EditExpenseScreen(
                         TextButton(
                             onClick = { selectedTagId = tag.id; chooseTag = false },
                             modifier = Modifier.fillMaxWidth(),
-                        ) { Text("${tag.emoji} ${tag.name}", modifier = Modifier.fillMaxWidth()) }
+                        ) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                TagIcon(tag.emoji, tag.imagePath, tag.colorArgb, tag.name, Modifier.size(36.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(tag.name)
+                            }
+                        }
                     }
                 }
             },
@@ -236,6 +242,26 @@ internal fun EditExpenseScreen(
             confirmButton = { TextButton(onClick = { note = draft.trim(); editNote = false }) { Text("保存备注") } },
             dismissButton = { TextButton(onClick = { editNote = false }) { Text("取消") } },
         )
+    }
+}
+
+@Composable
+private fun TagEditRow(tag: QuickTag?, enabled: Boolean, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp),
+    ) {
+        Text("标签")
+        Spacer(Modifier.weight(1f))
+        if (tag != null) {
+            TagIcon(tag.emoji, tag.imagePath, tag.colorArgb, tag.name, Modifier.size(32.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(tag.name, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(6.dp))
+        Text(">")
     }
 }
 

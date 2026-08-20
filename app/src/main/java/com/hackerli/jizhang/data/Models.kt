@@ -7,6 +7,7 @@ data class QuickTag(
     val colorArgb: Int,
     val sortOrder: Int,
     val isArchived: Boolean = false,
+    val imagePath: String? = null,
 )
 
 data class ExpensePhoto(
@@ -44,6 +45,7 @@ data class Expense(
     val locationLabel: String,
     val photos: List<ExpensePhoto> = emptyList(),
     val refunds: List<Refund> = emptyList(),
+    val tagImagePath: String? = null,
 ) {
     val refundedAmountCents: Long get() = refunds.sumOf { it.amountCents }
     val actualAmountCents: Long get() = (amountCents - refundedAmountCents).coerceAtLeast(0L)

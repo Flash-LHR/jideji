@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 import java.util.Locale
+import androidx.compose.ui.graphics.Color
 
 @Composable
 internal fun AmountKeypad(
@@ -109,20 +110,7 @@ internal fun PhotoThumbnail(
     contentScale: ContentScale = ContentScale.Crop,
     maxDimension: Int = 640,
 ) {
-    val image by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, path, maxDimension) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(path, bounds)
-                var sample = 1
-                while (bounds.outWidth / sample > maxDimension || bounds.outHeight / sample > maxDimension) sample *= 2
-                BitmapFactory.decodeFile(
-                    path,
-                    BitmapFactory.Options().apply { inSampleSize = sample },
-                )?.asImageBitmap()
-            }.getOrNull()
-        }
-    }
+    val image = rememberFileImage(path, maxDimension)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
@@ -140,6 +128,50 @@ internal fun PhotoThumbnail(
             Text("照片")
         }
     }
+}
+
+@Composable
+internal fun TagIcon(
+    emoji: String,
+    imagePath: String?,
+    colorArgb: Int,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    val image = rememberFileImage(imagePath, 384)
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(colorArgb).copy(alpha = 0.15f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (image != null) {
+            Image(
+                bitmap = image,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text(emoji, fontSize = 22.sp)
+        }
+    }
+}
+
+@Composable
+private fun rememberFileImage(path: String?, maxDimension: Int): androidx.compose.ui.graphics.ImageBitmap? {
+    val image by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, path, maxDimension) {
+        value = if (path.isNullOrBlank()) null else withContext(Dispatchers.IO) {
+            runCatching {
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(path, bounds)
+                var sample = 1
+                while (bounds.outWidth / sample > maxDimension || bounds.outHeight / sample > maxDimension) sample *= 2
+                BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    return image
 }
 
 @Composable

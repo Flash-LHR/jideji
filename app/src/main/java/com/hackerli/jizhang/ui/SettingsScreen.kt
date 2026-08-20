@@ -61,8 +61,8 @@ internal fun SettingsScreen(
             SettingsRow("标签管理", "新建、排序、停用和恢复", onOpenTags)
         }
         SettingsGroup("数据") {
-            SettingsRow("完整导出", "Excel 与全部原图", onExport)
-            SettingsRow("照片占用空间", formatBytes(photoBytes), null)
+            SettingsRow("完整导出", "Excel 与全部图片", onExport)
+            SettingsRow("图片占用空间", formatBytes(photoBytes), null)
         }
         SettingsGroup("权限") {
             SettingsRow("精确位置", "已开启", null)
@@ -70,7 +70,7 @@ internal fun SettingsScreen(
         SettingsGroup("关于") {
             SettingsRow("当前版本", versionName, null)
             SettingsRow("检查更新", updateText, onCheckUpdate)
-            SettingsRow("数据存储", "账单和照片保存在本机", null)
+            SettingsRow("数据存储", "账单和图片保存在本机", null)
         }
     }
 }
@@ -107,10 +107,11 @@ internal fun TagManagementScreen(
     allTags: List<QuickTag>,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
-    onAdd: (String, String, Int) -> Boolean,
+    onAdd: (String, String, String?, Int) -> Boolean,
     onUpdate: (QuickTag) -> Boolean,
     onArchive: (QuickTag, Boolean) -> Unit,
     onMove: (QuickTag, Int) -> Unit,
+    onLaunchExternalActivity: () -> Unit,
 ) {
     val active = allTags.filterNot { it.isArchived }.sortedBy { it.sortOrder }
     val archived = allTags.filter { it.isArchived }.sortedBy { it.name }
@@ -144,7 +145,9 @@ internal fun TagManagementScreen(
                 item { Text("已停用标签", modifier = Modifier.padding(top = 22.dp, bottom = 5.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 items(archived, key = { "archived-${it.id}" }) { tag ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("${tag.emoji} ${tag.name}", modifier = Modifier.weight(1f))
+                        TagIcon(tag.emoji, tag.imagePath, tag.colorArgb, tag.name, Modifier.size(36.dp))
+                        Spacer(Modifier.width(9.dp))
+                        Text(tag.name, modifier = Modifier.weight(1f))
                         TextButton(onClick = { onArchive(tag, false) }) { Text("恢复") }
                     }
                     HorizontalDivider()
@@ -154,13 +157,23 @@ internal fun TagManagementScreen(
     }
 
     if (adding) {
-        TagEditorDialog("新建标签", null, onDismiss = { adding = false }) { name, emoji, color ->
-            onAdd(name, emoji, color)
+        TagEditorDialog(
+            "新建标签",
+            null,
+            onDismiss = { adding = false },
+            onLaunchExternalActivity = onLaunchExternalActivity,
+        ) { name, emoji, imagePath, color ->
+            onAdd(name, emoji, imagePath, color)
         }
     }
     editing?.let { tag ->
-        TagEditorDialog("编辑标签", tag, onDismiss = { editing = null }) { name, emoji, color ->
-            onUpdate(tag.copy(name = name, emoji = emoji, colorArgb = color))
+        TagEditorDialog(
+            "编辑标签",
+            tag,
+            onDismiss = { editing = null },
+            onLaunchExternalActivity = onLaunchExternalActivity,
+        ) { name, emoji, imagePath, color ->
+            onUpdate(tag.copy(name = name, emoji = emoji, imagePath = imagePath, colorArgb = color))
         }
     }
     pendingArchive?.let { tag ->
@@ -194,10 +207,7 @@ private fun TagManageRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Color(tag.colorArgb).copy(alpha = 0.15f)),
-            contentAlignment = Alignment.Center,
-        ) { Text(tag.emoji, fontSize = 22.sp) }
+        TagIcon(tag.emoji, tag.imagePath, tag.colorArgb, tag.name, Modifier.size(44.dp))
         Spacer(Modifier.width(10.dp))
         Text(tag.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
         Text(

@@ -11,7 +11,7 @@ import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-data class ExportProgress(val completedPhotos: Int, val totalPhotos: Int)
+data class ExportProgress(val completedImages: Int, val totalImages: Int)
 
 object FullExporter {
     fun write(
@@ -26,24 +26,44 @@ object FullExporter {
                 photo.path to "bill-${expense.id}-${index + 1}.${File(photo.path).extension.ifBlank { "jpg" }}"
             }
         }
+        val tagImageNames = tags.mapNotNull { tag ->
+            tag.imagePath?.let { path ->
+                tag.id to (path to "tag-${tag.id}.${File(path).extension.ifBlank { "jpg" }}")
+            }
+        }.toMap()
         photoNames.values.flatten().forEach { (path, _) ->
             val file = File(path)
             require(file.isFile && file.canRead() && file.length() > 0L) {
                 "照片文件不存在或无法读取：${file.name}"
             }
         }
+        tagImageNames.values.forEach { (path, _) ->
+            val file = File(path)
+            require(file.isFile && file.canRead() && file.length() > 0L) {
+                "标签图片不存在或无法读取：${file.name}"
+            }
+        }
         ZipOutputStream(output.buffered()).use { zip ->
             zip.putNextEntry(ZipEntry("记得记账单.xlsx"))
-            zip.write(buildWorkbook(expenses, tags, zoneId, photoNames))
+            zip.write(buildWorkbook(expenses, tags, zoneId, photoNames, tagImageNames))
             zip.closeEntry()
 
-            val total = expenses.sumOf { it.photos.size }
+            val total = expenses.sumOf { it.photos.size } + tagImageNames.size
             var completed = 0
             expenses.forEach { expense ->
                 photoNames.getValue(expense.id).forEach { (path, name) ->
                     val file = File(path)
                     zip.putNextEntry(ZipEntry("photos/$name"))
                     file.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                    completed++
+                    onProgress(ExportProgress(completed, total))
+                }
+            }
+            tags.forEach { tag ->
+                tagImageNames[tag.id]?.let { (path, name) ->
+                    zip.putNextEntry(ZipEntry("tag-icons/$name"))
+                    File(path).inputStream().use { it.copyTo(zip) }
                     zip.closeEntry()
                     completed++
                     onProgress(ExportProgress(completed, total))
@@ -61,12 +81,17 @@ object FullExporter {
                 photo.path to "bill-${expense.id}-${index + 1}.${File(photo.path).extension.ifBlank { "jpg" }}"
             }
         },
+        tagImageNames: Map<Long, Pair<String, String>> = tags.mapNotNull { tag ->
+            tag.imagePath?.let { path ->
+                tag.id to (path to "tag-${tag.id}.${File(path).extension.ifBlank { "jpg" }}")
+            }
+        }.toMap(),
     ): ByteArray {
         val sheets = listOf(
             Sheet("账单", billRows(expenses, zoneId)),
             Sheet("退款", refundRows(expenses, zoneId)),
             Sheet("照片", photoRows(expenses, photoNames)),
-            Sheet("标签", tagRows(tags)),
+            Sheet("标签", tagRows(tags, tagImageNames)),
         )
         return ByteArrayOutputStream().also { output ->
             ZipOutputStream(output).use { zip ->
@@ -144,14 +169,19 @@ object FullExporter {
         }
     }
 
-    private fun tagRows(tags: List<QuickTag>): List<List<Cell>> = buildList {
-        add(listOf("标签ID", "标签名称", "Emoji", "颜色", "固定排序", "是否停用").map(Cell::Text))
+    private fun tagRows(
+        tags: List<QuickTag>,
+        tagImageNames: Map<Long, Pair<String, String>>,
+    ): List<List<Cell>> = buildList {
+        add(listOf("标签ID", "标签名称", "图标类型", "Emoji", "标签图片文件名", "颜色", "固定排序", "是否停用").map(Cell::Text))
         tags.sortedWith(compareBy<QuickTag> { it.isArchived }.thenBy { it.sortOrder }).forEach { tag ->
             add(
                 listOf(
                     Cell.Number(tag.id.toDouble()),
                     Cell.Text(tag.name),
+                    Cell.Text(if (tag.imagePath == null) "Emoji" else "图片"),
                     Cell.Text(tag.emoji),
+                    Cell.Text(tagImageNames[tag.id]?.second.orEmpty()),
                     Cell.Text(String.format(Locale.US, "#%08X", tag.colorArgb)),
                     Cell.Number(tag.sortOrder.toDouble()),
                     Cell.Text(if (tag.isArchived) "是" else "否"),

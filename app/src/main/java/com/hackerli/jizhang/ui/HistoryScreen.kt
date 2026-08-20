@@ -215,11 +215,13 @@ private fun ExpenseRow(expense: Expense, zoneId: ZoneId, onClick: () -> Unit) {
         if (expense.photos.isNotEmpty()) {
             PhotoThumbnail(expense.photos.first().path, Modifier.size(52.dp))
         } else {
-            Box(
-                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(15.dp))
-                    .background(Color(expense.tagColorArgb).copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center,
-            ) { Text(expense.tagEmoji, fontSize = 23.sp) }
+            TagIcon(
+                expense.tagEmoji,
+                expense.tagImagePath,
+                expense.tagColorArgb,
+                expense.tagName,
+                Modifier.size(52.dp),
+            )
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {

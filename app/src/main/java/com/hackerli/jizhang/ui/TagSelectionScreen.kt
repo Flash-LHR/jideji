@@ -46,7 +46,8 @@ internal fun TagSelectionScreen(
     locationState: LocationState,
     modifier: Modifier = Modifier,
     onRetryLocation: () -> Unit,
-    onAddTag: (String, String, Int) -> Boolean,
+    onAddTag: (String, String, String?, Int) -> Boolean,
+    onLaunchExternalActivity: () -> Unit,
     onSelect: (QuickTag, LocationSnapshot) -> Unit,
 ) {
     var addingTag by remember { mutableStateOf(false) }
@@ -136,8 +137,9 @@ internal fun TagSelectionScreen(
             title = "新建标签",
             tag = null,
             onDismiss = { addingTag = false },
-        ) { name, emoji, color ->
-            onAddTag(name, emoji, color)
+            onLaunchExternalActivity = onLaunchExternalActivity,
+        ) { name, emoji, imagePath, color ->
+            onAddTag(name, emoji, imagePath, color)
         }
     }
 }
@@ -184,7 +186,13 @@ private fun TagTile(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(tag.emoji, fontSize = 22.sp)
+            TagIcon(
+                emoji = tag.emoji,
+                imagePath = tag.imagePath,
+                colorArgb = tag.colorArgb,
+                contentDescription = tag.name,
+                modifier = Modifier.size(32.dp),
+            )
             Text(tag.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
         }
     }

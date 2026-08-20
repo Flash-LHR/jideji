@@ -44,7 +44,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     val events = eventChannel.receiveAsFlow()
 
     init {
-        refreshAll(cleanOrphanPhotos = true)
+        refreshAll(cleanOrphanMedia = true)
         checkForUpdate()
     }
 
@@ -177,7 +177,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun addTag(name: String, emoji: String, colorArgb: Int): Boolean {
+    fun addTag(name: String, emoji: String, imagePath: String?, colorArgb: Int): Boolean {
         val cleanName = name.trim()
         if (!validateTagName(cleanName)) return false
         val cleanEmoji = emoji.trim().ifEmpty { "●" }
@@ -185,11 +185,12 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    database.insertTag(cleanName, cleanEmoji, colorArgb, sortOrder)
+                    database.insertTag(cleanName, cleanEmoji, imagePath, colorArgb, sortOrder)
                 }
                 loadAll()
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
+                withContext(Dispatchers.IO) { TagImageStorage.delete(getApplication(), imagePath) }
                 eventChannel.send(LedgerEvent.Error("新建标签失败"))
             }
         }
@@ -199,12 +200,19 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     fun updateTag(tag: QuickTag): Boolean {
         val cleanName = tag.name.trim()
         if (!validateTagName(cleanName, tag.id)) return false
+        val previousImagePath = _allTags.value.firstOrNull { it.id == tag.id }?.imagePath
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { database.updateTag(tag.copy(name = cleanName)) }
+                if (previousImagePath != tag.imagePath) {
+                    withContext(Dispatchers.IO) { TagImageStorage.delete(getApplication(), previousImagePath) }
+                }
                 loadAll()
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
+                if (previousImagePath != tag.imagePath) {
+                    withContext(Dispatchers.IO) { TagImageStorage.delete(getApplication(), tag.imagePath) }
+                }
                 eventChannel.send(LedgerEvent.Error("修改标签失败"))
             }
         }
@@ -290,19 +298,23 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun refreshAll(cleanOrphanPhotos: Boolean = false) {
-        viewModelScope.launch { loadAll(cleanOrphanPhotos) }
+    private fun refreshAll(cleanOrphanMedia: Boolean = false) {
+        viewModelScope.launch { loadAll(cleanOrphanMedia) }
     }
 
-    private suspend fun loadAll(cleanOrphanPhotos: Boolean = false) {
+    private suspend fun loadAll(cleanOrphanMedia: Boolean = false) {
         val (allTags, expenses) = withContext(Dispatchers.IO) {
             database.getTags(includeArchived = true) to database.getExpenses()
         }
-        if (cleanOrphanPhotos) {
+        if (cleanOrphanMedia) {
             withContext(Dispatchers.IO) {
                 PhotoStorage.cleanupOrphans(
                     getApplication(),
                     expenses.flatMap { expense -> expense.photos.map { it.path } }.toSet(),
+                )
+                TagImageStorage.cleanupOrphans(
+                    getApplication(),
+                    allTags.mapNotNull { it.imagePath }.toSet(),
                 )
             }
         }

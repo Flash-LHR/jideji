@@ -59,6 +59,7 @@ import com.hackerli.jizhang.data.LedgerEvent
 import com.hackerli.jizhang.data.LedgerViewModel
 import com.hackerli.jizhang.data.LocationSnapshot
 import com.hackerli.jizhang.data.PhotoStorage
+import com.hackerli.jizhang.data.TagImageStorage
 import com.hackerli.jizhang.data.UpdateState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -168,7 +169,10 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
     ) { uri ->
         if (uri != null) {
             exporting = true
-            exportProgress = ExportProgress(0, latestExpenses.sumOf { it.photos.size })
+            exportProgress = ExportProgress(
+                0,
+                latestExpenses.sumOf { it.photos.size } + latestTags.count { it.imagePath != null },
+            )
             scope.launch {
                 val result = runCatching {
                     withContext(Dispatchers.IO) {
@@ -249,6 +253,7 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
                     modifier = Modifier.padding(innerPadding),
                     onRetryLocation = viewModel::refreshLocation,
                     onAddTag = viewModel::addTag,
+                    onLaunchExternalActivity = { skipNextResumeUpdate = true },
                     onSelect = { tag, location ->
                         selectedTagId = tag.id
                         selectedLocation = location
@@ -261,7 +266,8 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
                     onOpenExpense = { selectedExpenseId = it; route = AppRoute.DETAIL },
                 )
                 MainTab.SETTINGS -> SettingsScreen(
-                    photoBytes = PhotoStorage.totalBytes(expenses.flatMap { it.photos }.map { it.path }),
+                    photoBytes = PhotoStorage.totalBytes(expenses.flatMap { it.photos }.map { it.path }) +
+                        TagImageStorage.totalBytes(context),
                     versionName = BuildConfig.VERSION_NAME,
                     updateText = updateState.displayText(),
                     modifier = Modifier.padding(innerPadding),
@@ -337,6 +343,7 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
                 onUpdate = viewModel::updateTag,
                 onArchive = viewModel::setTagArchived,
                 onMove = viewModel::moveTag,
+                onLaunchExternalActivity = { skipNextResumeUpdate = true },
             )
         }
     }
@@ -383,8 +390,8 @@ private fun ExportOverlay(progress: ExportProgress?) {
                     CircularProgressIndicator()
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        if (progress == null || progress.totalPhotos == 0) "正在导出账单"
-                        else "正在导出 ${progress.completedPhotos} / ${progress.totalPhotos} 张照片",
+                        if (progress == null || progress.totalImages == 0) "正在导出账单"
+                        else "正在导出 ${progress.completedImages} / ${progress.totalImages} 张图片",
                         modifier = Modifier.padding(top = 12.dp),
                     )
                 }

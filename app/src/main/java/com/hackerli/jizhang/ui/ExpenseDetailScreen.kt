@@ -71,7 +71,17 @@ internal fun ExpenseDetailScreen(
             Spacer(Modifier.weight(1f))
             TextButton(onClick = onEdit, enabled = !operationInFlight) { Text("编辑") }
         }
-        Text("${expense.tagEmoji} ${expense.tagName}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TagIcon(
+                expense.tagEmoji,
+                expense.tagImagePath,
+                expense.tagColorArgb,
+                expense.tagName,
+                Modifier.size(42.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(expense.tagName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        }
         Text("¥${formatCents(expense.actualAmountCents)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
         when (expense.refundStatus) {
             RefundStatus.PARTIAL -> Text("部分退款", color = MaterialTheme.colorScheme.tertiary)
