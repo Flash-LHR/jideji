@@ -142,7 +142,10 @@ internal fun TagIcon(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(colorArgb).copy(alpha = 0.15f)),
+            .background(
+                if (imagePath == null) Color(colorArgb).copy(alpha = 0.15f)
+                else MaterialTheme.colorScheme.surfaceVariant,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (image != null) {

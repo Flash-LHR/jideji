@@ -180,7 +180,11 @@ private fun TagTile(
         enabled = enabled,
         modifier = modifier.height(70.dp),
         shape = RoundedCornerShape(18.dp),
-        color = Color(tag.colorArgb).copy(alpha = if (enabled) 0.14f else 0.06f),
+        color = if (tag.imagePath == null) {
+            Color(tag.colorArgb).copy(alpha = if (enabled) 0.14f else 0.06f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (enabled) 1f else 0.5f)
+        },
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 5.dp, vertical = 7.dp),

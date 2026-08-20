@@ -169,18 +169,20 @@ internal fun TagEditorDialog(
                     }
                 }
 
-                Text("颜色", modifier = Modifier.padding(top = 13.dp), style = MaterialTheme.typography.labelLarge)
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 7.dp),
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    TagPalette.colors.forEach { option ->
-                        Box(
-                            modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(option))
-                                .clickable { color = option },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (color == option) Text("✓", color = Color.White, fontWeight = FontWeight.Bold)
+                if (visualMode == TagVisualMode.EMOJI) {
+                    Text("颜色", modifier = Modifier.padding(top = 13.dp), style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    ) {
+                        TagPalette.colors.forEach { option ->
+                            Box(
+                                modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(option))
+                                    .clickable { color = option },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (color == option) Text("✓", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
