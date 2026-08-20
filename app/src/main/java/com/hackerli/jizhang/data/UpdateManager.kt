@@ -8,6 +8,7 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -153,6 +154,7 @@ class UpdateManager(private val context: Context) {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
     private fun commitInstallSession(file: File, versionName: String) {
         check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
         val installer = context.packageManager.packageInstaller
