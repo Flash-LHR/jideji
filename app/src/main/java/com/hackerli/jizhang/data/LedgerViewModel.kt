@@ -71,6 +71,12 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun updateInstallIntent() = updateManager.requestInstall()
 
+    fun canInstallUpdateWithoutUserAction() = updateManager.canInstallWithoutUserAction()
+
+    fun installUpdateWithoutUserAction() {
+        viewModelScope.launch { updateManager.installWithoutUserAction() }
+    }
+
     fun record(
         amountYuan: Long,
         tag: QuickTag,

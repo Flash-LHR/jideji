@@ -1,8 +1,10 @@
 package com.hackerli.jizhang.data
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
@@ -33,15 +35,17 @@ sealed interface UpdateState {
         val apkPath: String,
         val changelog: List<String>,
     ) : UpdateState
+    data class Installing(val versionName: String) : UpdateState
     data class Error(val message: String) : UpdateState
 }
 
 class UpdateManager(private val context: Context) {
-    private val preferences = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
+    private val preferences = context.getSharedPreferences(UPDATE_PREFERENCES, Context.MODE_PRIVATE)
     private val updateDirectory = File(context.cacheDir, "updates").apply { mkdirs() }
     private val apkFile = File(updateDirectory, "update.apk")
     private val partialFile = File(updateDirectory, "update.apk.part")
     private val checkMutex = Mutex()
+    private val installMutex = Mutex()
 
     private val _state = MutableStateFlow<UpdateState>(initialState())
     val state = _state.asStateFlow()
@@ -50,7 +54,18 @@ class UpdateManager(private val context: Context) {
         if (!checkMutex.tryLock()) return
         try {
             withContext(Dispatchers.IO) {
-                if (!isConfigured() || _state.value is UpdateState.Ready) return@withContext
+                val installing = _state.value as? UpdateState.Installing
+                if (
+                    installing != null &&
+                    preferences.getString(SILENT_INSTALL_FAILED_VERSION, null) == installing.versionName
+                ) {
+                    _state.value = initialState()
+                }
+                if (
+                    !isConfigured() ||
+                    _state.value is UpdateState.Ready ||
+                    _state.value is UpdateState.Installing
+                ) return@withContext
                 _state.value = UpdateState.Checking
                 try {
                     val release = fetchLatestRelease()
@@ -66,6 +81,7 @@ class UpdateManager(private val context: Context) {
                     preferences.edit {
                         putString(KEY_READY_VERSION, versionName)
                         putString(KEY_READY_CHANGELOG, JSONArray(release.changelog).toString())
+                        remove(SILENT_INSTALL_FAILED_VERSION)
                     }
                     _state.value = UpdateState.Ready(versionName, apkFile.absolutePath, release.changelog)
                 } catch (error: Throwable) {
@@ -102,6 +118,74 @@ class UpdateManager(private val context: Context) {
         return Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
+    fun canInstallWithoutUserAction(): Boolean {
+        val ready = _state.value as? UpdateState.Ready ?: return false
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            context.packageManager.canRequestPackageInstalls() &&
+            preferences.getString(SILENT_INSTALL_FAILED_VERSION, null) != ready.versionName
+    }
+
+    suspend fun installWithoutUserAction() {
+        if (!installMutex.tryLock()) return
+        try {
+            withContext(Dispatchers.IO) {
+                val ready = _state.value as? UpdateState.Ready ?: return@withContext
+                if (!canInstallWithoutUserAction()) return@withContext
+                val file = File(ready.apkPath)
+                if (verifiedArchive(file) == null) {
+                    clearDownloadedUpdate()
+                    _state.value = UpdateState.Error("更新包校验失败")
+                    return@withContext
+                }
+
+                _state.value = UpdateState.Installing(ready.versionName)
+                runCatching { commitInstallSession(file, ready.versionName) }
+                    .onFailure {
+                        preferences.edit { putString(SILENT_INSTALL_FAILED_VERSION, ready.versionName) }
+                        _state.value = ready
+                    }
+            }
+        } finally {
+            installMutex.unlock()
+        }
+    }
+
+    private fun commitInstallSession(file: File, versionName: String) {
+        check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+        val installer = context.packageManager.packageInstaller
+        val parameters = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+            setAppPackageName(context.packageName)
+            setSize(file.length())
+            setInstallReason(PackageManager.INSTALL_REASON_USER)
+            setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+        val sessionId = installer.createSession(parameters)
+        try {
+            installer.openSession(sessionId).use { session ->
+                file.inputStream().use { input ->
+                    session.openWrite("base.apk", 0, file.length()).use { output ->
+                        input.copyTo(output)
+                        session.fsync(output)
+                    }
+                }
+                val callback = Intent(context, UpdateInstallReceiver::class.java).apply {
+                    action = ACTION_UPDATE_INSTALL_STATUS
+                    putExtra(EXTRA_UPDATE_VERSION, versionName)
+                }
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    sessionId,
+                    callback,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                )
+                session.commit(pendingIntent.intentSender)
+            }
+        } catch (error: Throwable) {
+            runCatching { installer.abandonSession(sessionId) }
+            throw error
         }
     }
 
@@ -230,6 +314,7 @@ class UpdateManager(private val context: Context) {
         preferences.edit {
             remove(KEY_READY_VERSION)
             remove(KEY_READY_CHANGELOG)
+            remove(SILENT_INSTALL_FAILED_VERSION)
         }
     }
 
@@ -259,3 +344,8 @@ class UpdateManager(private val context: Context) {
         private const val KEY_READY_CHANGELOG = "ready_changelog"
     }
 }
+
+internal const val ACTION_UPDATE_INSTALL_STATUS = "com.hackerli.jizhang.UPDATE_INSTALL_STATUS"
+internal const val EXTRA_UPDATE_VERSION = "update_version"
+internal const val UPDATE_PREFERENCES = "updates"
+internal const val SILENT_INSTALL_FAILED_VERSION = "silent_install_failed_version"
