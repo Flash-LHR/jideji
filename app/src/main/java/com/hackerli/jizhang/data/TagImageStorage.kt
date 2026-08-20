@@ -84,8 +84,10 @@ object TagImageStorage {
 
     fun delete(context: Context, path: String?) {
         if (path.isNullOrBlank()) return
-        val file = File(path)
-        if (file.parentFile?.canonicalFile == directory(context).canonicalFile) file.delete()
+        runCatching {
+            val file = File(path)
+            if (file.parentFile?.canonicalFile == directory(context).canonicalFile) file.delete()
+        }
     }
 
     fun cleanupOrphans(context: Context, usedPaths: Set<String>) {
@@ -98,7 +100,7 @@ object TagImageStorage {
     fun totalBytes(context: Context): Long = directory(context).listFiles().orEmpty().sumOf { it.length() }
 
     private fun directory(context: Context): File = File(context.filesDir, DIRECTORY).apply {
-        require(exists() || mkdirs()) { "无法创建标签图片目录" }
+        require(isDirectory || mkdirs()) { "无法创建标签图片目录" }
     }
 }
 
