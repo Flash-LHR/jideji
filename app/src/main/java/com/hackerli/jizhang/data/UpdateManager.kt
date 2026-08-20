@@ -1,5 +1,6 @@
 package com.hackerli.jizhang.data
 
+import android.app.ActivityOptions
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -174,15 +175,17 @@ class UpdateManager(private val context: Context) {
                         session.fsync(output)
                     }
                 }
-                val callback = Intent(context, UpdateInstallReceiver::class.java).apply {
+                val callback = Intent(context, UpdateInstallActivity::class.java).apply {
                     action = ACTION_UPDATE_INSTALL_STATUS
                     putExtra(EXTRA_UPDATE_VERSION, versionName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }
-                val pendingIntent = PendingIntent.getBroadcast(
+                val pendingIntent = PendingIntent.getActivity(
                     context,
                     sessionId,
                     callback,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                    installCallbackOptions(),
                 )
                 session.commit(pendingIntent.intentSender)
             }
@@ -190,6 +193,21 @@ class UpdateManager(private val context: Context) {
             runCatching { installer.abandonSession(sessionId) }
             throw error
         }
+    }
+
+    private fun installCallbackOptions() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        ActivityOptions.makeBasic().apply {
+            setPendingIntentCreatorBackgroundActivityStartMode(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
+                } else {
+                    @Suppress("DEPRECATION")
+                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                },
+            )
+        }.toBundle()
+    } else {
+        null
     }
 
     private fun initialState(): UpdateState {

@@ -30,9 +30,11 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".data.UpdateInstallReceiver"
-            android:exported="false" />
+        <activity
+            android:name=".data.UpdateInstallActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
