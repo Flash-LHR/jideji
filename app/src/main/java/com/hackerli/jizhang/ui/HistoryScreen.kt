@@ -238,14 +238,22 @@ private fun ExpenseRow(expense: Expense, zoneId: ZoneId, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             val detail = buildList {
-                if (expense.note.isNotBlank()) add("备注")
+                if (expense.note.isNotBlank()) add(expense.note)
                 when (expense.refundStatus) {
                     RefundStatus.PARTIAL -> add("部分退款")
                     RefundStatus.FULL -> add("全额退款")
                     RefundStatus.NONE -> Unit
                 }
             }.joinToString(" · ")
-            if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (detail.isNotEmpty()) {
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Text("¥${formatCents(expense.actualAmountCents)}", fontWeight = FontWeight.Bold)
     }
