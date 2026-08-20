@@ -102,7 +102,6 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
     var exportProgress by remember { mutableStateOf<ExportProgress?>(null) }
     var initialResumeHandled by remember { mutableStateOf(false) }
     var skipNextResumeUpdate by remember { mutableStateOf(false) }
-    var appResumed by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -115,7 +114,6 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                appResumed = true
                 if (!initialResumeHandled) {
                     initialResumeHandled = true
                     skipNextResumeUpdate = false
@@ -129,8 +127,6 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
                     Manifest.permission.ACCESS_FINE_LOCATION,
                 ) == PackageManager.PERMISSION_GRANTED
                 if (permissionGranted) viewModel.refreshLocation() else viewModel.requireLocationPermission()
-            } else if (event == Lifecycle.Event.ON_PAUSE) {
-                appResumed = false
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -231,14 +227,8 @@ fun LedgerApp(viewModel: LedgerViewModel = viewModel()) {
     val updateReady = updateState as? UpdateState.Ready
     val updateInstalling = updateState as? UpdateState.Installing
     val updateCanInterrupt = route !in setOf(AppRoute.ENTRY, AppRoute.EDIT, AppRoute.REFUND) && !operationInFlight && !exporting
-    val canInstallWithoutUserAction = updateReady != null && viewModel.canInstallUpdateWithoutUserAction()
-    LaunchedEffect(updateReady?.apkPath, updateCanInterrupt, appResumed) {
-        if (updateReady != null && updateCanInterrupt && appResumed && canInstallWithoutUserAction) {
-            viewModel.installUpdateWithoutUserAction()
-        }
-    }
-    if ((updateInstalling != null || canInstallWithoutUserAction) && updateCanInterrupt) {
-        UpdateInstallingScreen(updateInstalling?.versionName ?: updateReady?.versionName.orEmpty())
+    if (updateInstalling != null && updateCanInterrupt) {
+        UpdateInstallingScreen()
         return
     }
     if (updateReady != null && updateCanInterrupt) {
@@ -423,19 +413,19 @@ private fun UpdateRequiredScreen(version: String, changelog: List<String>, onIns
                     }
                 }
             }
-            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) { Text("安装更新") }
+            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) { Text("更新并重启") }
         }
     }
 }
 
 @Composable
-private fun UpdateInstallingScreen(version: String) {
+private fun UpdateInstallingScreen() {
     androidx.activity.compose.BackHandler { }
     Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             CircularProgressIndicator()
             Text(
-                "正在安装 v${version.removePrefix("v")}",
+                "正在更新，请稍候",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
