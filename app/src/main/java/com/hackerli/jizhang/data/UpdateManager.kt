@@ -133,6 +133,7 @@ class UpdateManager(private val context: Context) {
         if (!installMutex.tryLock()) return
         try {
             withContext(Dispatchers.IO) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@withContext
                 val ready = _state.value as? UpdateState.Ready ?: return@withContext
                 if (!canInstallWithoutUserAction()) return@withContext
                 val file = File(ready.apkPath)
